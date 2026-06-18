@@ -797,22 +797,17 @@ function drawLiveAnalysis(w, h) {
       // ==========================================
       // 2. 波形リアルタイムラインの修正（右端までフィット）
       // ==========================================
+      // 波形リアルタイムライン
       const wave = new Uint8Array(analyser.fftSize);
       analyser.getByteTimeDomainData(wave);
       ctx.globalAlpha = .75;
       ctx.lineWidth = 2.5;
-      ctx.strokeStyle = "#0a84ff";
+      ctx.strokeStyle = "#23f7d0";
       ctx.beginPath();
-
       for (let i = 0; i < wave.length; i++) {
-        const pct = i / (wave.length - 1);
-        // 20Hz〜20000Hzの間に対数でプロットを分散させる
-        const targetFreq = 10 ** (logMin + pct * (logMax - logMin));
-        
-        // 目盛りと完全に一致するX座標を計算
-        const x = freqToX(targetFreq) / ratio;
+        // 【修正】右端のパディング（余白）を無視して、Canvasの絶対的な右端（w）まで波形ラインを引き伸ばす
+        const x = (i / (wave.length - 1)) * w;
         const y = h * .5 + ((wave[i] - 128) / 128) * h * .2;
-        
         if (i === 0) ctx.moveTo(x, y);
         else ctx.lineTo(x, y);
       }
