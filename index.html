@@ -1,10 +1,9 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-　<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
- <meta name="google-site-verification" content="O4bu69EbOHojM_zJ1Ljj85fGA71X43yEXnDJC61VNgg" />
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>WEB EQ - ブラウザで動く高性能リアルタイム・オーディオイコライザー</title>
+  <title>Pro EQ Controller</title>
   <style>
     :root {
       color-scheme: dark;
@@ -745,41 +744,73 @@
         ctx.fillText(`${gain > 0 ? "+" : ""}${gain}dB`, 8, y + 4);
       });
     }
-
-    function drawLiveAnalysis(w, h) {
+function drawLiveAnalysis(w, h) {
       if (!analyser || (!monitoring && !playing)) return;
 
       const spectrum = new Uint8Array(analyser.frequencyBinCount);
       analyser.getByteFrequencyData(spectrum);
       ctx.save();
       
-      // パディング内の描画領域制限
-      const padX = GRAPH_PADDING_X / (window.devicePixelRatio || 1);
-      const innerW = w - (padX * 2);
+      const ratio = window.devicePixelRatio || 1;
+      const padX = GRAPH_PADDING_X / ratio;
 
-      // 背景バーアナライザー
+      // ==========================================
+      // 1. 背景バーアナライザーの修正（対数マッピング）
+      // ==========================================
       ctx.globalAlpha = .12;
       ctx.fillStyle = "#0a84ff";
+      
       const bars = 64;
-      const step = Math.max(1, Math.floor(spectrum.length / bars));
-      const barWidth = innerW / bars;
+      const logMin = Math.log10(20);
+      const logMax = Math.log10(20000);
+
       for (let i = 0; i < bars; i++) {
+        // バーの左端と右端の周波数を対数スケールで計算
+        const pctL = i / bars;
+        const pctR = (i + 1) / bars;
+        
+        const freqL = 10 ** (logMin + pctL * (logMax - logMin));
+        const freqR = 10 ** (logMin + pctR * (logMax - logMin));
+
+        // 周波数から正確なX座標を取得
+        const xL = freqToX(freqL) / ratio;
+        const xR = freqToX(freqR) / ratio;
+        const barWidth = xR - xL;
+
+        // Web Audio APIのインデックスに変換してその範囲の最大値（ピーク）を取得
+        const sampleRate = audioContext.sampleRate;
+        const idxL = Math.floor((freqL * analyser.fftSize) / sampleRate);
+        const idxR = Math.ceil((freqR * analyser.fftSize) / sampleRate);
+        
         let peak = 0;
-        for (let j = 0; j < step; j++) peak = Math.max(peak, spectrum[i * step + j] || 0);
+        for (let j = idxL; j <= idxR; j++) {
+          if (spectrum[j] > peak) peak = spectrum[j];
+        }
+
         const barHeight = (peak / 255) * h * .5;
-        ctx.fillRect(padX + (i * barWidth), h - barHeight, Math.max(1, barWidth - 1), barHeight);
+        // 右端まで隙間なく敷き詰めて描画
+        ctx.fillRect(xL, h - barHeight, Math.max(1, barWidth - 0.5), barHeight);
       }
 
-      // 波形リアルタイムライン
+      // ==========================================
+      // 2. 波形リアルタイムラインの修正（右端までフィット）
+      // ==========================================
       const wave = new Uint8Array(analyser.fftSize);
       analyser.getByteTimeDomainData(wave);
       ctx.globalAlpha = .75;
       ctx.lineWidth = 2.5;
       ctx.strokeStyle = "#0a84ff";
       ctx.beginPath();
+
       for (let i = 0; i < wave.length; i++) {
-        const x = padX + (i / (wave.length - 1)) * innerW;
+        const pct = i / (wave.length - 1);
+        // 20Hz〜20000Hzの間に対数でプロットを分散させる
+        const targetFreq = 10 ** (logMin + pct * (logMax - logMin));
+        
+        // 目盛りと完全に一致するX座標を計算
+        const x = freqToX(targetFreq) / ratio;
         const y = h * .5 + ((wave[i] - 128) / 128) * h * .2;
+        
         if (i === 0) ctx.moveTo(x, y);
         else ctx.lineTo(x, y);
       }
