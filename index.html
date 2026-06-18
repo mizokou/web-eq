@@ -3,7 +3,7 @@
 <head>
   <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>Pro EQ Controller</title>
+  <title>WEB EQ</title>
   <style>
     :root {
       color-scheme: dark;
@@ -744,66 +744,47 @@
         ctx.fillText(`${gain > 0 ? "+" : ""}${gain}dB`, 8, y + 4);
       });
     }
-function drawLiveAnalysis(w, h) {
-  if (!analyser || (!monitoring && !playing)) return;
 
-  const spectrum = new Uint8Array(analyser.frequencyBinCount);
-  analyser.getByteFrequencyData(spectrum);
-  ctx.save();
-  
-  // パディング内の描画領域制限
-  const padX = GRAPH_PADDING_X / (window.devicePixelRatio || 1);
-  const innerW = w - (padX * 2);
+    function drawLiveAnalysis(w, h) {
+      if (!analyser || (!monitoring && !playing)) return;
 
-  // 背景バーアナライザー
-  ctx.globalAlpha = .12;
-  ctx.fillStyle = "#0a84ff";
-  const bars = 64;
-  const step = Math.max(1, Math.floor(spectrum.length / bars));
-  const barWidth = innerW / bars;
-  for (let i = 0; i < bars; i++) {
-    let peak = 0;
-    for (let j = 0; j < step; j++) peak = Math.max(peak, spectrum[i * step + j] || 0);
-    const barHeight = (peak / 255) * h * .5;
-    ctx.fillRect(padX + (i * barWidth), h - barHeight, Math.max(1, barWidth - 1), barHeight);
-  }
+      const spectrum = new Uint8Array(analyser.frequencyBinCount);
+      analyser.getByteFrequencyData(spectrum);
+      ctx.save();
+      
+      // パディング内の描画領域制限
+      const padX = GRAPH_PADDING_X / (window.devicePixelRatio || 1);
+      const innerW = w - (padX * 2);
 
-  // 【改善】波形リアルタイムラインを周波数軸（対数）に正しくマッピング
-  const wave = new Uint8Array(analyser.fftSize);
-  analyser.getByteTimeDomainData(wave);
-  ctx.globalAlpha = .75;
-  ctx.lineWidth = 2.5;
-  ctx.strokeStyle = "#0a84ff";
-  ctx.beginPath();
-  
-  const sampleRate = audioContext.sampleRate;
-  let firstPoints = true;
+      // 背景バーアナライザー
+      ctx.globalAlpha = .12;
+      ctx.fillStyle = "#0a84ff";
+      const bars = 64;
+      const step = Math.max(1, Math.floor(spectrum.length / bars));
+      const barWidth = innerW / bars;
+      for (let i = 0; i < bars; i++) {
+        let peak = 0;
+        for (let j = 0; j < step; j++) peak = Math.max(peak, spectrum[i * step + j] || 0);
+        const barHeight = (peak / 255) * h * .5;
+        ctx.fillRect(padX + (i * barWidth), h - barHeight, Math.max(1, barWidth - 1), barHeight);
+      }
 
-  for (let i = 0; i < wave.length; i++) {
-    // タイムドメインのインデックスから、簡易的に対応する周波数成分のシミュレーション座標、
-    // またはグラフ全体に綺麗に広がるように、X座標の比率を調整します。
-    // 今回は「右端が余る」のを防ぐため、対数グラフの20Hz〜20000Hzの範囲に完全に1:1でフィットさせます。
-    
-    const pct = i / (wave.length - 1);
-    // 20Hzから20000Hzの間を対数で補間してX座標を算出
-    const logMin = Math.log10(20);
-    const logMax = Math.log10(20000);
-    const targetFreq = 10 ** (logMin + pct * (logMax - logMin));
-    
-    // 算出した周波数から、デバイスピクセル比を考慮した正確なX座標を取得
-    const x = freqToX(targetFreq) / (window.devicePixelRatio || 1);
-    const y = h * .5 + ((wave[i] - 128) / 128) * h * .2;
-
-    if (firstPoints) {
-      ctx.moveTo(x, y);
-      firstPoints = false;
-    } else {
-      ctx.lineTo(x, y);
+      // 波形リアルタイムライン
+      const wave = new Uint8Array(analyser.fftSize);
+      analyser.getByteTimeDomainData(wave);
+      ctx.globalAlpha = .75;
+      ctx.lineWidth = 2.5;
+      ctx.strokeStyle = "#0a84ff";
+      ctx.beginPath();
+      for (let i = 0; i < wave.length; i++) {
+        const x = padX + (i / (wave.length - 1)) * innerW;
+        const y = h * .5 + ((wave[i] - 128) / 128) * h * .2;
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+      ctx.restore();
     }
-  }
-  ctx.stroke();
-  ctx.restore();
-}
 
     function draw() {
       const { w, h } = graphSize();
