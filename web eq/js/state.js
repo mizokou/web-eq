@@ -1,0 +1,27 @@
+/** ミュータブルなアプリケーション状態 */
+let bands = JSON.parse(JSON.stringify(presets.flat));
+let audioContext;
+let sourceNode;
+let buffer;
+let startedAt = 0;
+let pausedAt = 0;
+let playing = false;
+let analyser;
+let masterGain;
+let limiter;
+let filters = [];
+let dragging = null;
+let selectedBandIndex = 0;
+let bypass = false;
+let limiterOn = true;
+let monitorStream;
+let monitorSource;
+let monitoring = false;
+let inputStream;
+let inputSource;
+let inputActive = false;
+let liveDraw = false;
+let normalizeOn = false;
+let normalizeGainNode;
+let normalizeProcessor;
+let currentNormalizeGain = 1.0;
